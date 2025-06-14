@@ -1,0 +1,154 @@
+local Players = game:GetService("Players")
+local TweenService = game:GetService("TweenService")
+local RunService = game:GetService("RunService")
+
+local bot = Players.LocalPlayer
+local controllerUserId = 7089838125
+local verticalOffset = 20
+local controller = nil
+local followConnection = nil
+local spinConnection = nil
+local isFlinging = false
+
+local function getRoot(player)
+	local character = player.Character or player.CharacterAdded:Wait()
+	return character:WaitForChild("HumanoidRootPart")
+end
+
+local function startFollowLoop()
+	if followConnection then return end
+	followConnection = RunService.RenderStepped:Connect(function()
+		if not isFlinging and controller and controller.Character then
+			local root = getRoot(bot)
+			local ctrlRoot = getRoot(controller)
+			root.CFrame = CFrame.new(ctrlRoot.Position - Vector3.new(0, verticalOffset, 0))
+		end
+	end)
+end
+
+local function stopFollowLoop()
+	if followConnection then
+		followConnection:Disconnect()
+		followConnection = nil
+	end
+end
+
+local function startFling()
+	local root = getRoot(bot)
+	spinConnection = RunService.RenderStepped:Connect(function()
+		root.CFrame = root.CFrame * CFrame.Angles(
+			math.rad(100), -- X
+			math.rad(100), -- Y
+			math.rad(100)  -- Z
+		)
+	end)
+end
+
+local function stopFling()
+	if spinConnection then
+		spinConnection:Disconnect()
+	end
+	spinConnection = nil
+	isFlinging = false
+	startFollowLoop()
+end
+
+local function returnToController()
+	local botRoot = getRoot(bot)
+	local botHumanoid = bot.Character and bot.Character:FindFirstChildOfClass("Humanoid")
+	if botHumanoid then
+		botHumanoid.PlatformStand = true
+	end
+	botRoot.Anchored = true
+	botRoot.CanCollide = false
+	botRoot.Massless = true
+
+	if controller and controller.Character then
+		local ctrlRoot = getRoot(controller)
+		botRoot.CFrame = CFrame.new(ctrlRoot.Position - Vector3.new(0, verticalOffset, 0))
+	end
+end
+
+-- ✅ NEW fling logic with 3-second delay
+local function handleFCommand(targetName)
+	local target = Players:FindFirstChild(targetName)
+	if not target or target == bot then return end
+
+	isFlinging = true
+	stopFollowLoop()
+
+	local botRoot = getRoot(bot)
+	local botHumanoid = bot.Character and bot.Character:FindFirstChildOfClass("Humanoid")
+	if botHumanoid then
+		botHumanoid.PlatformStand = true
+	end
+
+	-- Enable fling physics
+	botRoot.Anchored = false
+	botRoot.CanCollide = true
+	botRoot.Massless = false
+
+	-- Move to target
+	local targetChar = target.Character or target.CharacterAdded:Wait()
+	local targetRoot = targetChar:WaitForChild("HumanoidRootPart")
+	botRoot.CFrame = targetRoot.CFrame + Vector3.new(0, 3, 0)
+	botRoot.Velocity = Vector3.new(150, 150, 150)
+
+	startFling()
+
+	-- Fling for 3 seconds then return
+	task.delay(3, function()
+		stopFling()
+		returnToController()
+	end)
+end
+
+local function listenToController()
+	controller.Chatted:Connect(function(msg)
+		local targetName = msg:match("^%.f%s+(%w+)$")
+		if targetName then
+			handleFCommand(targetName)
+		elseif msg == ".stop" then
+			stopFling()
+			returnToController()
+		end
+	end)
+end
+
+local function setupController(player)
+	controller = player
+
+	if not player.Character then
+		player.CharacterAdded:Wait()
+	end
+	local ctrlRoot = getRoot(player)
+	local botRoot = getRoot(bot)
+
+	local finalPos = ctrlRoot.Position - Vector3.new(0, verticalOffset, 0)
+	local tween = TweenService:Create(botRoot, TweenInfo.new(1), {CFrame = CFrame.new(finalPos)})
+	tween:Play()
+	tween.Completed:Wait()
+
+	local botHumanoid = bot.Character and bot.Character:FindFirstChildOfClass("Humanoid")
+	if botHumanoid then
+		botHumanoid.PlatformStand = true
+	end
+
+	botRoot.Anchored = true
+	botRoot.CanCollide = false
+	botRoot.Massless = true
+	startFollowLoop()
+	listenToController()
+end
+
+for _, p in ipairs(Players:GetPlayers()) do
+	if p.UserId == controllerUserId then
+		setupController(p)
+	end
+end
+
+Players.PlayerAdded:Connect(function(p)
+	if p.UserId == controllerUserId then
+		setupController(p)
+	end
+end)
