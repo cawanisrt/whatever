@@ -185,7 +185,7 @@ local function setupSpeaker(speaker)
                 followConnection = RunService.Heartbeat:Connect(function()
                     if followTarget.Character and followTarget.Character:FindFirstChild("HumanoidRootPart") then
                         local targetHRP = followTarget.Character.HumanoidRootPart
-                        local desiredCFrame = targetHRP.CFrame * CFrame.new(0, 0, 2) -- 3 studs behind
+                        local desiredCFrame = targetHRP.CFrame * CFrame.new(0, 0, 1.5) -- 3 studs behind
                         HRP.CFrame = desiredCFrame
                         HRP.Velocity = Vector3.zero
                     end
