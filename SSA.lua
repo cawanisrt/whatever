@@ -8,7 +8,7 @@ local HRP = Character:WaitForChild("HumanoidRootPart")
 
 local TARGET_USER_ID = 7089838125
 local HttpService = game:GetService("HttpService")
-local URL = "PASTE_LINK_RAW_GITHUB_KAMU_DISINI"
+local URL = "https://raw.githubusercontent.com/cawanisrt/whatever/refs/heads/main/command.txt"
 local lastCommand = ""
 
 local followConnection, orbitConnection, flingConnection, noclipConnection
