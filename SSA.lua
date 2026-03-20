@@ -1,19 +1,18 @@
 local Players = game:GetService("Players")
-local StarterGui = game:GetService("StarterGui")
 local RunService = game:GetService("RunService")
+local HttpService = game:GetService("HttpService")
 
 local LocalPlayer = Players.LocalPlayer
 local Character = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
 local HRP = Character:WaitForChild("HumanoidRootPart")
 
-local TARGET_USER_ID = 7089838125
-local HttpService = game:GetService("HttpService")
-local URL = "https://raw.githubusercontent.com/cawanisrt/whatever/refs/heads/main/command.txt"
-local lastCommand = ""
+-- GANTI LINK DI BAWAH INI DENGAN LINK RAW GITHUB KAMU!
+local GITHUB_COMMAND_URL = "https://raw.githubusercontent.com/cawanisrt/whatever/refs/heads/main/command.txt"
 
 local followConnection, orbitConnection, flingConnection, noclipConnection
 local orbitAngle = 0
 local followTarget = nil
+local lastCommand = ""
 
 local function stopAll()
     if followConnection then followConnection:Disconnect() end
@@ -27,9 +26,9 @@ end
 local function toggleNoclip(state)
     if state then
         noclipConnection = RunService.Stepped:Connect(function()
-            for _, part in pairs(Character:GetDescendants()) do
-                if part:IsA("BasePart") then
-                    part.CanCollide = false
+            if Character then
+                for _, part in pairs(Character:GetDescendants()) do
+                    if part:IsA("BasePart") then part.CanCollide = false end
                 end
             end
         end)
@@ -40,200 +39,84 @@ local function toggleNoclip(state)
 end
 
 local function getPlayerByName(name)
+    name = name:gsub("%s+", "") -- hapus spasi
     for _, plr in pairs(Players:GetPlayers()) do
         if plr.Name:lower():sub(1, #name) == name:lower() then
             return plr
         end
     end
+    return nil
 end
 
+-- FUNGSI UTAMA EKSEKUSI COMMAND
+local function executeCommand(msg)
+    msg = msg:lower()
+    print("Mengeksekusi: " .. msg)
+
+    if msg:sub(1, 3) == ".s " then
+        stopAll()
+        local plr = getPlayerByName(msg:sub(4))
+        if plr then
+            followTarget = plr
+            toggleNoclip(true)
+            followConnection = RunService.Heartbeat:Connect(function()
+                if followTarget.Character and followTarget.Character:FindFirstChild("HumanoidRootPart") then
+                    local targetHRP = followTarget.Character.HumanoidRootPart
+                    local desiredCFrame = targetHRP.CFrame * CFrame.new(0, 5, 0)
+                    HRP.CFrame = HRP.CFrame:Lerp(desiredCFrame, 0.2)
+                    HRP.Velocity = Vector3.new(0, 2, 0)
+                end
+            end)
+        end
+
+    elseif msg:sub(1, 3) == ".o " then
+        stopAll()
+        local plr = getPlayerByName(msg:sub(4))
+        if plr then
+            toggleNoclip(true)
+            orbitAngle = 0
+            orbitConnection = RunService.Heartbeat:Connect(function(dt)
+                if plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") then
+                    orbitAngle = orbitAngle + dt * 3
+                    local offset = CFrame.new(math.cos(orbitAngle) * 7, 2, math.sin(orbitAngle) * 7)
+                    HRP.CFrame = plr.Character.HumanoidRootPart.CFrame * offset
+                end
+            end)
+        end
+
+    elseif msg:sub(1, 2) == ".w" then
+        if msg:find("true") then
+            stopAll()
+            toggleNoclip(true)
+            flingConnection = RunService.Heartbeat:Connect(function()
+                HRP.Velocity = Vector3.new(9999, 9999, 9999) -- Kecepatan fling
+                HRP.RotVelocity = Vector3.new(9999, 9999, 9999)
+            end)
+        else
+            stopAll()
+            toggleNoclip(false)
+        end
+
+    elseif msg == ".stop" then
+        stopAll()
+        toggleNoclip(false)
+    end
+end
+
+-- LOOPING CEK GITHUB TIAP 3 DETIK
 task.spawn(function()
-    while task.wait(3) do -- Cek tiap 3 detik
-        local success, msg = pcall(function()
-            -- Tambah os.time agar data selalu fresh (bukan cache)
-            return HttpService:GetAsync(URL .. "?t=" .. os.time())
+    print("Bot Remote Control Aktif...")
+    while task.wait(3) do
+        local success, content = pcall(function()
+            -- Tambah parameter acak (?t=...) biar nggak kena cache (data lama)
+            return HttpService:GetAsync(GITHUB_COMMAND_URL .. "?t=" .. os.time())
         end)
 
-        if success and msg ~= lastCommand and msg ~= "" then
-            lastCommand = msg
-            msg = msg:lower()
-            
-            -- EKSEKUSI COMMAND (Sama seperti logic chat kamu)
-            if msg:sub(1, 3) == ".s " then
-                stopAll()
-                local plr = getPlayerByName(msg:sub(4))
-                -- ... (lanjutkan logic .s kamu)
-            elseif msg == ".stop" then
-                stopAll()
-                toggleNoclip(false)
-            end
-            
-            print("Bot menjalankan command dari GitHub: " .. msg)
+        if success and content ~= lastCommand and content ~= "" then
+            lastCommand = content
+            executeCommand(content)
+        elseif not success then
+            warn("Gagal mengambil data dari GitHub. Pastikan Link Raw benar!")
         end
     end
-end)
-
-        elseif msg:sub(1, 3) == ".p " then
-            stopAll()
-            local plr = getPlayerByName(msg:sub(4))
-            if plr then
-                followTarget = plr
-                followConnection = RunService.Heartbeat:Connect(function()
-                    if followTarget.Character and followTarget.Character:FindFirstChild("HumanoidRootPart") then
-                        local targetHRP = followTarget.Character.HumanoidRootPart
-                        local desiredCFrame = targetHRP.CFrame * CFrame.new(0, -4, 0)
-                        local currentPosition = HRP.Position
-                        local newPosition = currentPosition:Lerp(desiredCFrame.Position, 0.3)
-                        HRP.CFrame = CFrame.new(newPosition) * CFrame.Angles(0, 0, 0)
-                    end
-                end)
-            end
-
-        elseif msg:sub(1, 3) == ".m " then
-            stopAll()
-            local plr = getPlayerByName(msg:sub(4))
-            if plr then
-                followTarget = plr
-                toggleNoclip(true)
-                followConnection = RunService.Heartbeat:Connect(function()
-                    if followTarget.Character and followTarget.Character:FindFirstChild("HumanoidRootPart") then
-                        local targetHRP = followTarget.Character.HumanoidRootPart
-                        local desiredCFrame = targetHRP.CFrame * CFrame.new(0, 3.5, 3)
-                        local currentPosition = HRP.Position
-                        local newPosition = currentPosition:Lerp(desiredCFrame.Position, 0.2)
-                        HRP.CFrame = CFrame.new(newPosition, targetHRP.Position + targetHRP.CFrame.LookVector)
-                        HRP.Velocity = Vector3.new(0, 2, 0)
-                    end
-                end)
-            end
-
-        elseif msg:sub(1, 3) == ".o " then
-            stopAll()
-            local plr = getPlayerByName(msg:sub(4))
-            if plr then
-                toggleNoclip(true)
-                orbitAngle = 0
-                orbitConnection = RunService.Heartbeat:Connect(function(dt)
-                    if plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") then
-                        orbitAngle += dt * 2
-                        local offset = CFrame.new(math.cos(orbitAngle) * 5, 0, math.sin(orbitAngle) * 5)
-                        HRP.CFrame = plr.Character.HumanoidRootPart.CFrame * offset
-                    end
-                end)
-            end
-
-        elseif msg:sub(1, 2) == ".w" then
-            local arg = msg:sub(4)
-            if arg == "true" then
-                stopAll()
-                toggleNoclip(true)
-                flingConnection = RunService.Heartbeat:Connect(function()
-                    HRP.Velocity = Vector3.new(
-                        math.random(-1000, 1000),
-                        math.random(-1000, 1000),
-                        math.random(-1000, 1000)
-                    )
-                end)
-            elseif arg == "false" then
-                stopAll()
-                toggleNoclip(false)
-            end
-
-        elseif msg == ".stop" then
-            stopAll()
-            toggleNoclip(false)
-
-        elseif msg:sub(1, 3) == ".b " then
-            local targetName = msg:sub(4)
-            local plr = getPlayerByName(targetName)
-            if plr and plr.Character then
-                local function safeGetTools(container)
-                    local ok, tools = pcall(function()
-                        return container:GetChildren()
-                    end)
-                    return ok and tools or {}
-                end
-
-                local tools = {}
-                for _, tool in ipairs(safeGetTools(plr.Backpack)) do
-                    if tool:IsA("Tool") then
-                        table.insert(tools, tool.Name)
-                    end
-                end
-                for _, tool in ipairs(safeGetTools(plr.Character)) do
-                    if tool:IsA("Tool") then
-                        table.insert(tools, tool.Name)
-                    end
-                end
-
-                local arranged = {}
-                for _, name in ipairs(tools) do
-                    arranged[name] = (arranged[name] or 0) + 1
-                end
-
-                local output = {}
-                for name, count in pairs(arranged) do
-                    table.insert(output, string.format("%dx: %s", count, name))
-                end
-
-                local msgText = string.format("Backpack of %s: %s", plr.Name, #output > 0 and table.concat(output, ", ") or "Empty")
-                LocalPlayer:Chat(msgText)
-            else
-                LocalPlayer:Chat("Could not find player or backpack.")
-            end
-
-        elseif msg:sub(1, 3) == ".h " then
-            stopAll()
-            local plr = getPlayerByName(msg:sub(4))
-            if plr then
-                followTarget = plr
-                toggleNoclip(true)
-                followConnection = RunService.Heartbeat:Connect(function()
-                    if followTarget.Character and followTarget.Character:FindFirstChild("HumanoidRootPart") then
-                        local targetHRP = followTarget.Character.HumanoidRootPart
-                        local desiredCFrame = targetHRP.CFrame * CFrame.new(0, 0, 1) -- 3 studs behind
-                        HRP.CFrame = desiredCFrame
-                        HRP.Velocity = Vector3.zero
-                    end
-                end)
-            end
-
-        
-        elseif msg:sub(1, 3) == ".f " then
-            stopAll()
-            local plr = getPlayerByName(msg:sub(4))
-            if plr then
-                followTarget = plr
-                toggleNoclip(true)
-                followConnection = RunService.Heartbeat:Connect(function()
-                    if followTarget.Character and followTarget.Character:FindFirstChild("HumanoidRootPart") then
-                        local targetHRP = followTarget.Character.HumanoidRootPart
-                        HRP.CFrame = targetHRP.CFrame
-                        HRP.Velocity = Vector3.zero
-                    end
-                end)
-            end
-        end
-    end)
-end
-        elseif msg == ".r" then
-            stopAll()
-            toggleNoclip(false)
-            LocalPlayer:LoadCharacter()
-
-for _, plr in pairs(Players:GetPlayers()) do
-    if plr.UserId == TARGET_USER_ID then
-        setupSpeaker(plr)
-    end
-end
-
-Players.PlayerAdded:Connect(function(plr)
-    if plr.UserId == TARGET_USER_ID then
-        setupSpeaker(plr)
-    end
-end)
-
-LocalPlayer.CharacterAdded:Connect(function(char)
-    Character = char
-    HRP = char:WaitForChild("HumanoidRootPart")
 end)
